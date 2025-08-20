@@ -1,0 +1,7 @@
+.idea
+*\bin
+*\logs
+*\obj
+*\volumes
+.env
+.vscode/
