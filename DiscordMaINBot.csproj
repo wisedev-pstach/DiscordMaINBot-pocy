@@ -12,7 +12,10 @@
       <PackageReference Include="DSharpPlus.CommandsNext" Version="4.5.1" />
       <PackageReference Include="DSharpPlus.Interactivity" Version="4.5.1" />
       <PackageReference Include="DSharpPlus.SlashCommands" Version="4.5.1" />
-      <PackageReference Include="MaIN.NET" Version="0.2.8" />
+      <PackageReference Include="LLamaSharp" Version="0.25.0" />
+      <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.25.0" />
+      <PackageReference Include="LLamaSharp.kernel-memory" Version="0.25.0" />
+      <PackageReference Include="MaIN.NET" Version="0.6.0" />
     </ItemGroup>
 
 </Project>

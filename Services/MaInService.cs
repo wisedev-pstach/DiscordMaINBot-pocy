@@ -1,5 +1,6 @@
 ﻿using DiscordMaINBot.Interfaces;
 using MaIN.Core.Hub;
+using MaIN.Core.Hub.Contexts;
 using MaIN.Core.Hub.Utils;
 using MaIN.Domain.Configuration;
 using MaIN.Domain.Entities;
@@ -10,6 +11,24 @@ namespace DiscordMaINBot.Services;
 
 public class MaInService(IOptions<BotConfig> options) : IMaInService
 {
+    private readonly Dictionary<string, ChatContext> Cache = [];
+
+    public async Task<string> ConverseAsync(string channelId, string prompt)
+    {
+        var ctx = Cache.TryGetValue(channelId, out var value) ? value 
+            : AIHub.Chat();
+        
+        ctx.WithModel(options.Value.Model)
+            .WithBackend(InferBackendType())
+            .WithSystemPrompt(options.Value.SystemPrompt)
+            .WithMessage(prompt);
+        
+        Cache[channelId] = ctx;
+        
+        var result = await ctx.CompleteAsync();
+        return result.Message.Content;
+    }
+
     public async Task<string> AskQuestionAsync(string question)
     {
         var backend = InferBackendType();

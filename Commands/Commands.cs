@@ -12,13 +12,6 @@ namespace DiscordMaINBot.Commands;
 
 public class Commands(IMaInService maInService) : ApplicationCommandModule
 {
-    [SlashCommand("test", "Tests if the bot is working properly")]
-    public async Task TestingCommand(InteractionContext ctx)
-    {
-        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().WithContent("I am working properly!"));
-    }
-    
     [SlashCommand("ask", "Ask model AI a question with file")]
     public async Task AskWithFileCommand(InteractionContext ctx,
         [Option("question", "Your question for the bot")] string question,
@@ -137,8 +130,6 @@ public class Commands(IMaInService maInService) : ApplicationCommandModule
         await ctx.DeferAsync(ephemeral: false);
 
         var answer = await maInService.AskQuestionAsync(question);
-        var xpp = await ctx.Channel.GetMessagesAsync();
-        var xpp1 = xpp.Select(x => x.Content).ToList();
         if (ctx.Channel.IsThread)
         {
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(answer));
@@ -146,10 +137,8 @@ public class Commands(IMaInService maInService) : ApplicationCommandModule
         }
         
         var botMessage = await ctx.EditResponseAsync(new DiscordWebhookBuilder()
-            .WithContent("\u2705 I’ve created a thread with your question"));
+            .WithContent($"{ctx.User.Mention} \u2705 I’ve created a thread with your question: {Environment.NewLine} {answer}"));
 
-        var thread = await botMessage.CreateThreadAsync(question, AutoArchiveDuration.Day);
-        
-        await thread.SendMessageAsync($"Hello {ctx.User.Mention}, here’s my answer to your question: *{answer}*");
+        await botMessage.CreateThreadAsync(question, AutoArchiveDuration.Day);
     }
 }

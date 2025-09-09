@@ -5,6 +5,7 @@ namespace DiscordMaINBot.Interfaces;
 
 public interface IMaInService
 {
+    Task<string> ConverseAsync(string channelId, string prompt);
     Task<string> AskQuestionAsync(string question);
     Task<string> AskQuestionWithFileAsync(string question, List<string> filesPath);
     Task<string> TranslateMessageAsync(string message, string targetLanguage);

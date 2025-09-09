@@ -11,7 +11,9 @@ using Microsoft.Extensions.Options;
 
 namespace DiscordMaINBot.Services;
 
-public class DiscordService(IOptions<BotConfig> options) : IDiscordService
+public class DiscordService(
+    IOptions<BotConfig> options,
+    IMaInService maInService) : IDiscordService
 {
     public async Task StartAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
     {
@@ -40,6 +42,18 @@ public class DiscordService(IOptions<BotConfig> options) : IDiscordService
 
     private async Task HandleNewMessage(DiscordClient client, MessageCreateEventArgs args)
     {
-        Console.WriteLine("New message");
+        if (!args.Author.IsBot)
+        {
+            if(args.Channel.IsPrivate)
+            {
+                await args.Channel.TriggerTypingAsync();
+                var conversationResult =
+                    await maInService.ConverseAsync(
+                        args.Channel.Id.ToString(), 
+                        args.Message.Content);
+                
+                await args.Channel.SendMessageAsync(conversationResult);
+            }
+        }
     }
 }
