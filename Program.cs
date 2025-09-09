@@ -3,10 +3,10 @@ using DiscordMaINBot;
 using DiscordMaINBot.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
-
 var serviceCollection = new ServiceCollection();
 var configuration = serviceCollection.RegisterConfiguration();
 serviceCollection.AddServices(configuration);
+serviceCollection.AddOptions<BotConfig>().Bind(configuration.GetSection("BotConfig"));
 serviceCollection.AddMaIn(configuration);
 
 var serviceProvider = serviceCollection.BuildServiceProvider();
