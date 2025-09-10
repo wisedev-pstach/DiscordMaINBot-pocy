@@ -14,6 +14,7 @@ namespace DiscordMaINBot.Services;
 
 public class DiscordService(
     IOptions<BotConfig> options,
+    RandomMessageService randomMessageService,
     IMaInService maInService) : IDiscordService
 {
     public async Task StartAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
@@ -35,7 +36,10 @@ public class DiscordService(
         
         slash.RegisterCommands<Commands.Commands>();
         client.MessageCreated += HandleNewMessage;
-        //Setup random message sends
+
+        // Set up random messaging
+        randomMessageService.SetClient(client);
+        StartRandomMessageTimer();
         
         await client.ConnectAsync();
         await Task.Delay(-1, cancellationToken);
@@ -124,5 +128,21 @@ public class DiscordService(
                 await args.Channel.SendMessageAsync(conversationResult);
             }
         }
+    }
+    
+    private void StartRandomMessageTimer()
+    {
+        var interval = TimeSpan.FromMinutes(options.Value.RandomMessageIntervalMinutes);
+        _ = new Timer(async _ => 
+        {
+            try 
+            {
+                await randomMessageService.TryRandomMessage();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Random message timer error: {ex.Message}");
+            }
+        }, null, interval, interval);
     }
 }
