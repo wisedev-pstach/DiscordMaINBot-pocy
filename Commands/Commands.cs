@@ -95,7 +95,7 @@ public class Commands(IMaInService maInService) : ApplicationCommandModule
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent("Something went wrong. Try again later"));
         }
     }
-    
+
     [SlashCommand("image", "Generate image based on text")]
     public async Task GenerateImageCommand(InteractionContext ctx,
         [Option("prompt", "Prompt for image generation")] string prompt)
@@ -103,18 +103,30 @@ public class Commands(IMaInService maInService) : ApplicationCommandModule
         try
         {
             await ctx.DeferAsync();
-            var responseText = await maInService.GenerateImageAsync(prompt);
-            
-            if (responseText == null)
+        
+            if (!ImageThrottler.CanGenerate())
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder()
+                    .WithContent($"❌ Rate limit exceeded. {ImageThrottler.GetRemaining()} requests remaining this hour."));
+                return;
+            }
+
+            ImageThrottler.RecordRequest();
+            var image = await maInService.GenerateImageAsync(prompt);
+        
+            if (image == null)
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent("Failed to generate image."));
                 return;
             }
-            
-            using var ms = new MemoryStream(responseText);
+        
+            using var ms = new MemoryStream(image);
             ms.Position = 0;
-            await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent("Here is your image:")
+            var response = await ctx.EditResponseAsync(new DiscordWebhookBuilder()
+                .WithContent($"✅ Generated: `{prompt}`") //| {ImageThrottler.GetRemaining()} remaining
                 .AddFile("image.png", ms));
+            
+            ImageThrottler.StorePrompt(response.Id, prompt);
         }
         catch (Exception ex)
         {
@@ -122,6 +134,7 @@ public class Commands(IMaInService maInService) : ApplicationCommandModule
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent("Something went wrong. Try again later"));
         }
     }
+    
     
     [SlashCommand("answerthread", "Ask something and I will reply in a new thread.")]
     public async Task AnswerThreadAsync(InteractionContext ctx, 
@@ -137,8 +150,14 @@ public class Commands(IMaInService maInService) : ApplicationCommandModule
         }
         
         var botMessage = await ctx.EditResponseAsync(new DiscordWebhookBuilder()
-            .WithContent($"{ctx.User.Mention} \u2705 I’ve created a thread with your question: {Environment.NewLine} {answer}"));
+            .WithContent($"{ctx.User.Mention} \u2705 I’ve created a thread with your question"));
 
-        await botMessage.CreateThreadAsync(question, AutoArchiveDuration.Day);
+        var thread = await botMessage.CreateThreadAsync(question, AutoArchiveDuration.Day);
+        
+        var channel = await ctx.Client.GetChannelAsync(thread.Id);
+        if (channel is DiscordThreadChannel threadChannel)
+        {
+            await threadChannel.SendMessageAsync(answer);
+        }
     }
 }

@@ -13,17 +13,25 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
 {
     private readonly Dictionary<string, ChatContext> Cache = [];
 
-    public async Task<string> ConverseAsync(string channelId, string prompt)
+    public async Task<string> ConverseAsync(string channelId, string prompt, bool noCache = false)
     {
-        var ctx = Cache.TryGetValue(channelId, out var value) ? value 
+        var ctx = !noCache && Cache.TryGetValue(channelId, out var value) ? value 
             : AIHub.Chat();
         
         ctx.WithModel(options.Value.Model)
+            .WithInferenceParams(new InferenceParams()
+            {
+                ContextSize = 4096,
+                MaxTokens = 2048
+            })
             .WithBackend(InferBackendType())
             .WithSystemPrompt(options.Value.SystemPrompt)
             .WithMessage(prompt);
-        
-        Cache[channelId] = ctx;
+
+        if (!noCache)
+        {
+            Cache[channelId] = ctx;
+        }
         
         var result = await ctx.CompleteAsync();
         return result.Message.Content;
@@ -39,7 +47,8 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
             .WithInitialPrompt($"{sysPrompt} |Answer cannot be longer than 2000 characters.")
             .WithMemoryParams(new MemoryParams
             {
-                AnswerTokens = 2137
+                AnswerTokens = 2137,
+                ContextSize = 2048
             })
             .CreateAsync();
         
@@ -62,7 +71,8 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
             }, AgentSourceType.File)
             .WithMemoryParams(new MemoryParams
             {
-                AnswerTokens = 2137
+                AnswerTokens = 2137,
+                ContextSize = 2048
             })
             .WithSteps(StepBuilder.Instance
                 .FetchData()
@@ -93,7 +103,7 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
             .WithBehaviour("Translator", Behaviour.Translator)
             .WithMemoryParams(new MemoryParams
             {
-                AnswerTokens = 600
+                AnswerTokens = 900
             })
             .WithSteps(StepBuilder.Instance
                 .FetchData()
@@ -143,16 +153,22 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
 
     public async Task<byte[]?> GenerateImageAsync(string prompt)
     {
+        if (!ImageThrottler.CanGenerate())
+        {
+            throw new InvalidOperationException($"Global rate limit exceeded. {ImageThrottler.GetRemaining()} requests remaining this hour.");
+        }
+
+        ImageThrottler.RecordRequest();
+
         var context = AIHub.Chat()
             .WithBackend(BackendType.Gemini)
             .EnableVisual()
+            .WithModel("imagen-4.0-fast-generate-001")
             .WithMessage(prompt);
-        
+    
         var response = await context.CompleteAsync();
-
         return response.Message.Image;
     }
-    
     private BackendType InferBackendType()
     {
         var backend = options.Value.Backend != null ? Enum.Parse<BackendType>(options.Value.Backend) : BackendType.Self;
