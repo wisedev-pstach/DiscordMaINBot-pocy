@@ -1,4 +1,5 @@
-﻿using DiscordMaINBot.Interfaces;
+﻿using System.Text;
+using DiscordMaINBot.Interfaces;
 using MaIN.Core.Hub;
 using MaIN.Core.Hub.Contexts;
 using MaIN.Core.Hub.Utils;
@@ -25,7 +26,7 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
                 MaxTokens = 2048
             })
             .WithBackend(InferBackendType())
-            .WithSystemPrompt(options.Value.SystemPrompt)
+            .WithSystemPrompt(ComposeFullSystemPrompt(options.Value))
             .WithMessage(prompt);
 
         if (!noCache)
@@ -34,7 +35,7 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
         }
         
         var result = await ctx.CompleteAsync();
-        return result.Message.Content;
+        return result.Message.Content.Replace("<start_of_turn>", "").Replace("<end_of_turn>", "").Replace("Assistant:", "");
     }
 
     public async Task<string> AskQuestionAsync(string question)
@@ -44,7 +45,7 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
         var context = await AIHub.Agent()
             .WithModel(options.Value.Model)
             .WithBackend(backend)
-            .WithInitialPrompt($"{sysPrompt} |Answer cannot be longer than 2000 characters.")
+            .WithInitialPrompt(ComposeFullSystemPrompt(options.Value))
             .WithMemoryParams(new MemoryParams
             {
                 AnswerTokens = 2137,
@@ -173,5 +174,37 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
     {
         var backend = options.Value.Backend != null ? Enum.Parse<BackendType>(options.Value.Backend) : BackendType.Self;
         return backend;
+    }
+    
+    private static string ComposeFullSystemPrompt(BotConfig config)
+    {
+        var basePrompt = config.SystemPrompt;
+        var personality = config.Personality;
+    
+        var personalitySection = new StringBuilder();
+        personalitySection.AppendLine("\n**Your Personality:**");
+    
+        // Add mood and trait
+        personalitySection.AppendLine($"You have a {personality.Mood.ToLower()} mood and are {personality.Trait.ToLower()}.");
+    
+        // Add backstory if provided
+        if (!string.IsNullOrEmpty(personality.Backstory))
+        {
+            personalitySection.AppendLine($"Your backstory: {personality.Backstory}");
+        }
+    
+        // Add quirks if provided
+        if (personality.Quirks?.Length > 0)
+        {
+            personalitySection.AppendLine("\nYour quirks:");
+            foreach (var quirk in personality.Quirks)
+            {
+                personalitySection.AppendLine($"- {quirk}");
+            }
+        }
+    
+        personalitySection.AppendLine("\nLet these personality traits naturally influence how you communicate and respond to users.");
+    
+        return basePrompt + personalitySection.ToString();
     }
 }

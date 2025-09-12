@@ -17,6 +17,7 @@ public class DiscordService(
     RandomMessageService randomMessageService,
     IMaInService maInService) : IDiscordService
 {
+    private Timer _randomMessageTimer;
     public async Task StartAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
     {
         var discordToken = options.Value.DiscordToken;
@@ -49,13 +50,29 @@ public class DiscordService(
     {
         if (!args.Author.IsBot)
         {
-            if(args.Channel.IsPrivate)
+            if (args.Message.Author.Id != client.CurrentUser.Id && randomMessageService.HasRecentMessage(args.Channel.Id, out string recentQuestion))
+            {
+                // 50% chance to respond
+                var random = new Random();
+                if (random.Next(100) < 80)
+                {
+                    await args.Channel.TriggerTypingAsync();
+                    var contextPrompt = $"You recently asked: '{recentQuestion}' and user ({args.Author.Username}) in the chat said: '{args.Message.Content}'. If this seems like a response to your question, provide a thoughtful follow-up. If it doesn't seem related, just acknowledge it briefly. Dont ask additional questions in response";
+                
+                    var conversationResult = await maInService.ConverseAsync(args.Channel.Id.ToString(), contextPrompt);
+                    await args.Channel.SendMessageAsync(conversationResult);
+                
+                    // Clear the recent message so we don't keep responding
+                    randomMessageService.ClearRecentMessage(args.Channel.Id);
+                }
+            }
+            else if(args.Channel.IsPrivate)
             {
                 await args.Channel.TriggerTypingAsync();
                 var conversationResult =
                     await maInService.ConverseAsync(
                         args.Channel.Id.ToString(), 
-                        args.Message.Content);
+                        $"{args.Author.Username}: {args.Message.Content}");
                 
                 await args.Channel.SendMessageAsync(conversationResult);
             }
@@ -133,16 +150,27 @@ public class DiscordService(
     private void StartRandomMessageTimer()
     {
         var interval = TimeSpan.FromMinutes(options.Value.RandomMessageIntervalMinutes);
-        _ = new Timer(async _ => 
+        
+        _randomMessageTimer = new Timer(TimerCallback!, null, TimeSpan.FromMinutes(20), interval);
+    }
+    
+    private void TimerCallback(object state)
+    {
+        Console.WriteLine($"Timer callback fired at {DateTime.Now}");
+        
+        Task.Run(async () =>
         {
-            try 
+            try
             {
+                Console.WriteLine("About to call TryRandomMessage...");
                 await randomMessageService.TryRandomMessage();
+                Console.WriteLine("TryRandomMessage completed");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Random message timer error: {ex.Message}");
+                Console.WriteLine($"Error in timer callback: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
             }
-        }, null, interval, interval);
+        });
     }
 }
