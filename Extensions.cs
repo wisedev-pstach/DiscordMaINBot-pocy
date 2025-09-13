@@ -38,11 +38,10 @@ public static class Extensions
     
     public static IConfiguration RegisterConfiguration(this IServiceCollection services)
     {
-        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
-        
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile(Path.Combine(path, "appsettings.json"), optional: false, reloadOnChange: true)
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddEnvironmentVariables()
             .Build();
         
         services.AddSingleton(configuration);

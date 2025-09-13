@@ -41,7 +41,6 @@ public class MaInService(IOptions<BotConfig> options) : IMaInService
     public async Task<string> AskQuestionAsync(string question)
     {
         var backend = InferBackendType();
-        var sysPrompt = options.Value.SystemPrompt;
         var context = await AIHub.Agent()
             .WithModel(options.Value.Model)
             .WithBackend(backend)
